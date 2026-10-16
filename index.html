@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pemindai QR Absensi Siswa</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 520px;
+      margin: 30px auto;
+      padding: 20px;
+      color: #1f2937;
+      background: #f3f4f6;
+    }
+    .kartu {
+      background: white;
+      padding: 22px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px #00000012;
+    }
+    h1 { font-size: 23px; }
+    #pembacaQR {
+      width: 100%;
+      margin: 18px auto;
+    }
+    #status {
+      padding: 12px;
+      border-radius: 8px;
+      background: #eff6ff;
+      overflow-wrap: anywhere;
+    }
+    button {
+      padding: 12px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: #2563eb;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="kartu">
+    <h1>📷 Pemindai QR Absensi</h1>
+    <p>Arahkan kamera ke QR Code siswa.</p>
+
+    <div id="pembacaQR"></div>
+
+    <p id="status" role="status">
+      Tekan tombol Mulai Scan untuk mengaktifkan kamera.
+    </p>
+
+    <button id="mulai" type="button">Mulai Scan</button>
+  </div>
+
+  <script>
+    const tombol = document.getElementById('mulai');
+    const status = document.getElementById('status');
+    let pemindai = null;
+    let memproses = false;
+
+    tombol.addEventListener('click', async function () {
+      if (memproses) return;
+
+      if (typeof Html5Qrcode === 'undefined') {
+        status.textContent = 'Pustaka pemindai QR gagal dimuat.';
+        return;
+      }
+
+      tombol.disabled = true;
+      status.textContent = 'Meminta izin kamera...';
+
+      try {
+        pemindai = new Html5Qrcode('pembacaQR');
+
+        await pemindai.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          async function (teksQR) {
+            if (memproses) return;
+            memproses = true;
+
+            status.textContent = 'QR terbaca. Mengirim hasil ke aplikasi...';
+
+            try {
+              await pemindai.stop();
+            } catch (e) {
+              console.warn('Kamera tidak berhasil dihentikan:', e);
+            }
+
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage(
+                { type: 'QR_SCANNED', token: teksQR },
+                '*'
+              );
+              status.textContent =
+                'QR berhasil dikirim ke aplikasi absensi. Periksa halaman aplikasi.';
+            } else {
+              status.textContent =
+                'QR terbaca, tetapi halaman aplikasi absensi tidak ditemukan. Buka pemindai dari tombol di aplikasi absensi.';
+              memproses = false;
+              tombol.disabled = false;
+            }
+          },
+          function () {}
+        );
+
+        status.textContent = 'Kamera aktif. Arahkan ke QR Code siswa.';
+        tombol.textContent = 'Kamera Aktif';
+      } catch (error) {
+        status.textContent =
+          'Kamera gagal dibuka. Izinkan akses kamera pada browser dan pastikan halaman menggunakan HTTPS.';
+        console.error(error);
+        tombol.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
